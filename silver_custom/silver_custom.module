@@ -1,0 +1,157 @@
+<?php
+
+function silver_custom_permission() {
+	return array(
+			'postal code permission' => array(
+				'title' => t('Access Postal Code'),
+				'description' => t('This is postal code page'),
+			),
+		);
+}
+
+function silver_custom_menu() {
+	$items['postcode'] = array(					// admin menu
+		'title' => t('Post Code'),
+		'page callback' => 'drupal_get_form',
+		'page arguments' =>  array('silver_postal_code_form'),
+		'access arguments' => array('postal code permission'),
+	);
+
+	$items['postcode-view'] = array(			// search pincode
+		'title' => t('Post Code View'),
+		'page callback' => 'drupal_get_form',
+		'page arguments' =>  array('autocomplete_postcode_form'),
+		'access callback' => TRUE,
+	);
+
+	$items['autocomplete/postcode'] = array(	// pincode autocomplete
+		'title' => t('Post Code Get'),
+		'page callback' => 'postcode_list',
+		'access callback' => True,
+	);
+
+	$items['session/page/%'] = array(	// pincode autocomplete
+		'title' => t('Post Code Set Session'),
+		'page callback' => 'set_session_page',
+		'page arguments' => array(2),
+		'access callback' => True,
+	);
+	return $items;
+}
+
+/*--------------------ADMIN SAVE FORM PINCODE---------------------*/
+function silver_postal_code_form($form, $form_state) {
+	$form['postal_code'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Postal Code'),
+		'#description' => t('eg. OX1 AAA'),
+		'#required' => True,
+		'#size' => 60,
+		'#maxlength' => 20,
+	);
+
+	$form['submit'] = array(
+			'#type' => 'submit',
+			'#value' => t('Save Postal Code'),
+	);
+	return $form;
+}
+
+function silver_postal_code_form_validate($form, &$form_state) {
+/*  if (!($form_state['values']['postal_code'] > 5)){
+    form_set_error('postal_code', t('Price must be a positive number.'));
+  }*/
+}
+
+function silver_postal_code_form_submit($form, &$form_state) {
+
+
+    $po = $form_state['values']['postal_code'];
+
+	$exists = db_query('SELECT * FROM {postcode} WHERE postal_code = :postal_code', 
+						array(':postal_code' => $po))->fetchField();
+		
+	if ($exists == FALSE){
+		db_insert('postcode')->fields(array(
+      		'postal_code'    => $form_state['values']['postal_code'],
+     		))->execute();
+		drupal_set_message(t('Postal Code was saved.'));
+	} else {
+		drupal_set_message(t('Already Exists Postal code.'),'error');
+	}				
+						
+
+}
+
+
+/*--------------------------AUTO COMPLIETE SEARCH-------------------------------------------*/
+
+function autocomplete_postcode_form($form, &$form_state) {
+	$form['pincodelist'] = array(
+		'#title' => t('Pincode'),
+		'#type' => 'textfield',
+		'#autocomplete_path' => 'autocomplete/postcode',
+		'#required' => True,
+		'#size' => 60,
+		'#maxlength' => 20,
+	);
+	$form['submit'] = array(
+			'#type' => 'submit',
+			'#value' => t('Save Postal Code'),
+	);
+	
+	return $form;
+}
+function postcode_list($string="") {
+
+/*	$exists = db_query('SELECT * FROM {postcode} WHERE postal_code = :postal_code', 
+						array(':postal_code' => $po))->fetchField();*/
+	//global $user;
+	$match = array();
+	$query =db_select('postcode','pc')
+				->fields('pc',array('postal_code'))
+				->condition('pc.postal_code', db_like($string) . '%','LIKE')
+				->condition('pc.postid', 0, '<>')
+				->range(0,10);
+		
+	$result = $query->execute();	
+
+
+	foreach ($result as $value) {
+		$match[$value->postal_code] = check_plain($value->postal_code);
+	}
+	
+	drupal_json_output($match);
+	exit;
+
+
+}
+
+
+function autocomplete_postcode_form_submit($form, &$form_state) {
+
+	$pincodes = $form_state['values']['pincodelist'];
+	$exists = db_query('SELECT * FROM {postcode} WHERE postal_code = :postal_code', 
+						array(':postal_code' => $pincodes))->fetchField();
+		
+	if ($exists == FALSE){
+		drupal_set_message(t('Invalid Pincode.'),'error');
+	} else {
+		//session_start();
+		 $_SESSION['var1'] = $pincodes;
+		 $form_state['redirect'] = 'session/page/'.$pincodes;
+
+	}				
+				
+
+}
+function set_session_page() {
+	//session_start();
+//	print_r($_SESSION);
+	return $_SESSION['var1'];
+
+}
+
+
+
+?>
